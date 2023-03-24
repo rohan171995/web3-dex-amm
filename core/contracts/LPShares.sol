@@ -4,27 +4,6 @@ pragma solidity ^0.8.18;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
-interface IERC20 {
-    function totalSupply() external view returns (uint);
-
-    function balanceOf(address account) external view returns (uint);
-
-    function transfer(address recipient, uint amount) external returns (bool);
-
-    function allowance(address owner, address spender) external view returns (uint);
-
-    function approve(address spender, uint amount) external returns (bool);
-
-    function transferFrom(
-        address sender,
-        address recipient,
-        uint amount
-    ) external returns (bool);
-
-    event Transfer(address indexed from, address indexed to, uint amount);
-    event Approval(address indexed owner, address indexed spender, uint amount);
-}
-
 contract LPShares is ERC20 {
 
     struct Incentives { 
@@ -32,7 +11,7 @@ contract LPShares is ERC20 {
         mapping(address => uint256) rewards;
     }
 
-    address [] private lpShareAddresses;
+    mapping(string => address []) private lpShareAddresses;
     mapping(address => Incentives) private incentives;
     uint256 private _totalSupply;
     address public owner;
@@ -58,47 +37,68 @@ contract LPShares is ERC20 {
     }
 
     function _transfer(address from, address to, uint256 amount) internal override virtual {
-        require(from != address(0), "ERC20: transfer from the zero address");
-        require(to != address(0), "ERC20: transfer to the zero address");
+        require(false, "transfer not allowed");
+        // require(from != address(0), "ERC20: transfer from the zero address");
+        // require(to != address(0), "ERC20: transfer to the zero address");
 
-        if (incentives[to].balances == 0) {
-            lpShareAddresses.push(to);
-        }
+        // _beforeTokenTransfer(from, to, amount);
 
-        _beforeTokenTransfer(from, to, amount);
+        // uint256 fromBalance = incentives[from].balances;
+        // require(fromBalance >= amount, "ERC20: transfer amount exceeds balance");
+        // unchecked {
+        //     incentives[from].balances = fromBalance - amount;
+        //     // Overflow not possible: the sum of all balances is capped by totalSupply, and the sum is preserved by
+        //     // decrementing then incrementing.
+        //     incentives[to].balances += amount;
+        // }
 
-        uint256 fromBalance = incentives[from].balances;
-        require(fromBalance >= amount, "ERC20: transfer amount exceeds balance");
-        unchecked {
-            incentives[from].balances = fromBalance - amount;
-            // Overflow not possible: the sum of all balances is capped by totalSupply, and the sum is preserved by
-            // decrementing then incrementing.
-            incentives[to].balances += amount;
-        }
+        // emit Transfer(from, to, amount);
 
-        emit Transfer(from, to, amount);
-
-        _afterTokenTransfer(from, to, amount);
+        // _afterTokenTransfer(from, to, amount);
 
     }
 
-    function mint(address _token1, address token2, address account, uint256 amount) public authorisedContract {
+    function mint(address token1, address token2, address account, uint256 amount) public authorisedContract {
+        string memory _token1 = toString(token1);
+        string memory _token2 = toString(token2);
 
-        if (incentives[account].balances == 0) {
-            lpShareAddresses.push(account);
+        if(incentives[account].balances[string.concat(_token1, _token2)] > 0) {
+            incentives[account].balances[string.concat(_token1, _token2)] += amount;
+        } else if(incentives[account].balances[string.concat(_token2, _token1)] > 0) {
+            incentives[account].balances[string.concat(_token2, _token1)] += amount;
+        } else{
+            lpShareAddresses[string.concat(_token1, _token2)].push(account);
+            incentives[account].balances[string.concat(_token1, _token2)] = amount;
         }
         _mint(account, amount);
     }  
 
-    function burn(address account, uint256 amount) public authorisedContract {
+    function burn(address token1, address token2, address account, uint256 amount) public authorisedContract {
+        string memory _token1 = toString(token1);
+        string memory _token2 = toString(token2);
 
+        if(incentives[account].balances[string.concat(_token1, _token2)] > 0) {
+            incentives[account].balances[string.concat(_token1, _token2)] -= amount;
+        } else if(incentives[account].balances[string.concat(_token2, _token1)] > 0) {
+            incentives[account].balances[string.concat(_token2, _token1)] -= amount;
+        } else{
+            require(false, "can't perform burn operation");
+        }
         _burn(account, amount);
     }
 
     function incentiviseUser(address token1, address token2, address token, uint256 amount) public authorisedContract {
-        for (int i=0; i< lpShareAddresses.length; i++) {
-            uint256 totalRewards = mul(div(mul(div(incentives[lpShareAddresses[i]].balances, _totalSupply), 100), 100), amount);
-            incentives[lpShareAddresses[i]].rewards[token] += totalRewards;
+        string memory lpId;
+        string memory _token1 = toString(token1);
+        string memory _token2 = toString(token2);
+        if(lpShareAddresses[string.concat(_token1, _token2)].length > 0) {
+            lpId = string.concat(_token1, _token2);
+        } else if(lpShareAddresses[string.concat(_token1, _token2)].length > 0) {
+            lpId = string.concat(_token1, _token2);
+        }
+        for (int i=0; i < lpShareAddresses[lpId].length; i++) {
+            uint256 totalRewards = ((((incentives[lpShareAddresses[lpId][i]].balances / _totalSupply) * 100) / 100) * amount);
+            incentives[lpShareAddresses[lpId][i]].rewards[token] += totalRewards;
         }
     }
 
@@ -109,4 +109,8 @@ contract LPShares is ERC20 {
         incentives[user].rewards[_token] -= totalRewards;
         token.transfer(user, totalRewards);
     }
+
+    function toString(address account) public pure returns(string memory) {
+    return toString(abi.encodePacked(account));
+}
 }

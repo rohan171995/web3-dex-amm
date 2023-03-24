@@ -2,8 +2,9 @@
 pragma solidity ^0.8.18;
 
 import "./LPShares.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract DcxSwap {
+contract DcxSwap is Ownable{
 
     struct LiquidityPool { 
         address token1;
@@ -23,8 +24,8 @@ contract DcxSwap {
         lpShares.mint(_token1, _token2, _to, _amount);
     }
 
-    function _burn(address _from, uint _amount) private {
-        lpShares.burn(_from, _amount);
+    function _burn(address _token1, address token2, address _from, uint _amount) private {
+        lpShares.burn(_token1, _token2, _from, _amount);
     }
 
     function swap(address _tokenIn, address _tokenOut, uint256 _amountIn) external {
@@ -40,7 +41,7 @@ contract DcxSwap {
         tokenOut.transfer(msg.sender, amountOut);
 
         tokenIn.transfer(address(lpShares), (_amountIn - amountInWithFee));
-        lpShares.incentiviseUser(_tokenIn, (_amountIn - amountInWithFee));
+        lpShares.incentiviseUser(_tokenIn, _tokenOut,  _tokenIn, (_amountIn - amountInWithFee));
 
     }
 
@@ -185,8 +186,7 @@ contract DcxSwap {
         amount1 = (_shares * bal1) / totalSupply;
         require(amount0 > 0 && amount1 > 0, "amount0 or amount1 = 0");
 
-        _burn(msg.sender, _shares);
-        _update(bal0 - amount0, bal1 - amount1);
+        _burn(_token1, _token2, msg.sender, _shares);
 
         token1.transfer(msg.sender, amount0);
         token2.transfer(msg.sender, amount1);
