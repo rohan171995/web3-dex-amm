@@ -1,10 +1,11 @@
 import { ethers } from 'ethers';
 import { useEffect, useState } from 'react';
+import { GoArrowDown } from 'react-icons/go';
 import { useAccount, useBalance, useContractRead } from 'wagmi'
 
 const style = {
     wrapper: `flex items-center justify-center mt-14`,
-    content: `bg-gray-200 w-[40rem] rounded-2xl p-4`,
+    content: `bg-gray-200 w-[40rem] rounded-2xl p-4 flex flex-col`,
     formHeader: `px-2 flex items-center justify-between font-semibold text-xl`,
     transferPropContainer: `bg-white my-3 rounded-2xl p-6 text-3xl  border border-[#20242A] hover:border-[#41444F]  flex justify-between`,
     transferPropInput: `bg-transparent placeholder:text-[#B2B9D2] outline-none mb-6 w-full text-2xl`,
@@ -24,6 +25,7 @@ export default function SwapComponent(props: any) {
     const [iplBalance, setIplBalance] = useState(0.0);
     const [bblBalance, setBblBalance] = useState(0.0);
     const [hasMounted, setHasMounted] = useState(false);
+    const [srcToken, setSrcToken] = useState("IPL");
     const ammAbi = [
         {
             "inputs": [
@@ -699,6 +701,23 @@ export default function SwapComponent(props: any) {
         }
     }, [props.isConnected])
 
+    function swapSrcDestToken() {
+        if(srcToken == "IPL") {
+            setSrcToken("BBL");
+        } else {
+            setSrcToken("IPL");
+        }
+       let el =  document.querySelector("div.token-input-container");
+       if(el?.classList.contains("flex-col")) {
+        el.classList.remove('flex-col')
+        el.classList.add("flex-col-reverse")
+       } 
+       else if(el?.classList.contains("flex-col-reverse")) {
+        el.classList.add("flex-col")
+        el.classList.remove('flex-col-reverse')
+       } 
+    }
+
     function setBalanceOfTokens() {
         setBalanceOfToken(iplTokenAddress, "IPL");  
         setBalanceOfToken(bblTokenAddress, "BBL");  
@@ -707,7 +726,9 @@ export default function SwapComponent(props: any) {
     async function swapToken() {
         const signer = provider.getSigner(address);
         const contract = new ethers.Contract("0x0A4906f1cd029b52237C8BcF3a91cA8375fa389D", ammAbi, signer);
-        let tokenOut = await contract.swap(iplTokenAddress, `${iplAmount}000000000000000000`);
+        const swapTokenInAddress = (srcToken === "IPL") ? iplTokenAddress : bblTokenAddress;
+        const swapAmount = (srcToken === "IPL") ? iplAmount : bblAmount;
+        let tokenOut = await contract.swap(swapTokenInAddress, `${swapAmount}000000000000000000`);
         setBalanceOfTokens();
     }
 
@@ -728,6 +749,7 @@ export default function SwapComponent(props: any) {
         <div className={style.formHeader}>
           <div className="text-black">Swap</div>
         </div>
+        <div className='flex flex-col token-input-container'>
         <div className={style.transferPropContainer}>
           <input
             type='text'
@@ -741,9 +763,12 @@ export default function SwapComponent(props: any) {
             <div className={style.currencySelectorContent}>
               <div className={style.currencySelectorTicker}>{"IPL"}</div>
             </div>
-            {iplBalance > 0 && <div className={style.currencyBalance}>Balance : {iplBalance.toFixed(3)}</div> 
+            {iplBalance > 0 && <div className={style.currencyBalance}>Balance : {iplBalance.toFixed(2)}</div> 
             }
           </div>
+        </div>
+        <div className="text-2xl justify-center text-center relative h-0 bottom-6">
+            <button className='bg-blue-200 text-4xl p-2 text-black rounded-lg' onClick={() => swapSrcDestToken()}><GoArrowDown /></button>
         </div>
         <div className={style.transferPropContainer}>
           <input
@@ -758,9 +783,10 @@ export default function SwapComponent(props: any) {
           <div className={style.currencySelectorContent}>
               <div className={style.currencySelectorTicker}>{"BBL"}</div>
             </div>
-            {bblBalance >0 && <div className={style.currencyBalance}>Balance : {bblBalance.toFixed(3)}</div> 
+            {bblBalance >0 && <div className={style.currencyBalance}>Balance : {bblBalance.toFixed(2)}</div> 
             }
           </div>
+        </div>
         </div>
         {   isConnected ? 
             <button className={style.confirmButton} disabled={(!iplAmount || !bblAmount)} onClick={() => swapToken()}> Swap </button> : <div className={style.confirmButton} onClick={() => connect()}> Connect Wallet </div>
