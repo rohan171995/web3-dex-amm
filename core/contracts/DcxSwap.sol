@@ -41,6 +41,8 @@ contract DcxSwap is Ownable {
         uint amountInWithFee = (_amountIn * 997) / 1000;
         uint amountOut = (reserveOut * amountInWithFee) / (reserveIn + amountInWithFee);
 
+        console.log("Total Amount out is: ", amountOut);
+
         require(IERC20(_tokenOut).balanceOf(address(this)) >= amountOut, "Dex out of liquidity");
 
         IERC20(_tokenIn).transferFrom(msg.sender, address(this), _amountIn);
@@ -201,8 +203,12 @@ contract DcxSwap is Ownable {
         IERC20(_token2).transfer(msg.sender, amount1);
     }
 
-    function claimIncentive(address user, address _token) public {
-        lpShares.claimIncentive(user, _token);
+    function claimIncentive(address _user, address _token) public {
+        lpShares.claimIncentive(_user, _token);
+    }
+
+    function checkIncentive(address _user, address _token) public {
+        lpShares.checkIncentive(_user, _token);
     }
 
     function _sqrt(uint y) private pure returns (uint z) {

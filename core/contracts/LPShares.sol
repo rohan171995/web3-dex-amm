@@ -14,7 +14,7 @@ contract LPShares is ERC20 {
 
     mapping(string => address []) private lpShareAddresses;
     mapping(address => Incentives) private incentives;
-    uint256 private _totalSupply;
+    mapping(string => uint256) public _totalSupply;
     address public owner;
     address public swapContract;
 
@@ -62,14 +62,20 @@ contract LPShares is ERC20 {
     function mint(address token1, address token2, address account, uint256 amount) public authorisedContract {
         string memory _token1 = toString(token1);
         string memory _token2 = toString(token2);
-
+        string memory lpId;
         if(incentives[account].balances[string.concat(_token1, _token2)] > 0) {
+            lpId = string.concat(_token1, _token2);
             incentives[account].balances[string.concat(_token1, _token2)] += amount;
+            _totalSupply[lpId] += amount;
         } else if(incentives[account].balances[string.concat(_token2, _token1)] > 0) {
+            lpId = string.concat(_token2, _token1);
             incentives[account].balances[string.concat(_token2, _token1)] += amount;
+            _totalSupply[lpId] += amount;
         } else{
+            lpId = string.concat(_token1, _token2);
             lpShareAddresses[string.concat(_token1, _token2)].push(account);
             incentives[account].balances[string.concat(_token1, _token2)] = amount;
+            _totalSupply[lpId] = amount;
         }
         _mint(account, amount);
     }  
@@ -80,8 +86,10 @@ contract LPShares is ERC20 {
 
         if(incentives[account].balances[string.concat(_token1, _token2)] > 0) {
             incentives[account].balances[string.concat(_token1, _token2)] -= amount;
+            _totalSupply[string.concat(_token1, _token2)] -= amount;
         } else if(incentives[account].balances[string.concat(_token2, _token1)] > 0) {
             incentives[account].balances[string.concat(_token2, _token1)] -= amount;
+            _totalSupply[string.concat(_token2, _token1)] -= amount;
         } else{
             require(false, "can't perform burn operation");
         }
@@ -101,8 +109,8 @@ contract LPShares is ERC20 {
             if(incentives[lpShareAddresses[lpId][i]].balances[lpId] > 0) {
                 console.log("LP Incentive for id: ", lpId, "is: " ,incentives[lpShareAddresses[lpId][i]].balances[lpId]);
                 console.log("Rewards for id: ", lpId, "is: " ,incentives[lpShareAddresses[lpId][i]].rewards[token]);
-                // uint256 totalRewards = ((((incentives[lpShareAddresses[lpId][i]].balances[lpId] / _totalSupply) * 100) / 100) * amount);
-                // incentives[lpShareAddresses[lpId][i]].rewards[token] += totalRewards;
+                uint256 totalRewards = ((((incentives[lpShareAddresses[lpId][i]].balances[lpId] / _totalSupply[lpId]) * 100) / 100) * amount);
+                incentives[lpShareAddresses[lpId][i]].rewards[token] += totalRewards;
             }
         }
     }
@@ -113,6 +121,10 @@ contract LPShares is ERC20 {
         IERC20 token = IERC20(_token);
         incentives[user].rewards[_token] -= totalRewards;
         token.transfer(user, totalRewards);
+    }
+
+    function checkIncentive(address user, address _token) public view authorisedContract returns (uint256 totalRewards) {
+        totalRewards = incentives[user].rewards[_token];
     }
 
     function toString(address account) public pure returns(string memory) {
