@@ -2,7 +2,8 @@
 pragma solidity ^0.8.18;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
+import "hardhat/console.sol";
 
 contract LPShares is ERC20 {
 
@@ -87,18 +88,22 @@ contract LPShares is ERC20 {
         _burn(account, amount);
     }
 
-    function incentiviseUser(address token1, address token2, address token, uint256 amount) public authorisedContract {
+    function incentiviseLPProviders(address token1, address token2, address token, uint256 amount) public authorisedContract {
         string memory lpId;
         string memory _token1 = toString(token1);
         string memory _token2 = toString(token2);
         if(lpShareAddresses[string.concat(_token1, _token2)].length > 0) {
             lpId = string.concat(_token1, _token2);
-        } else if(lpShareAddresses[string.concat(_token1, _token2)].length > 0) {
-            lpId = string.concat(_token1, _token2);
+        } else if(lpShareAddresses[string.concat(_token2, _token1)].length > 0) {
+            lpId = string.concat(_token2, _token1);
         }
-        for (int i=0; i < lpShareAddresses[lpId].length; i++) {
-            uint256 totalRewards = ((((incentives[lpShareAddresses[lpId][i]].balances / _totalSupply) * 100) / 100) * amount);
-            incentives[lpShareAddresses[lpId][i]].rewards[token] += totalRewards;
+        for (uint i=0; i < lpShareAddresses[lpId].length; i++) {
+            if(incentives[lpShareAddresses[lpId][i]].balances[lpId] > 0) {
+                console.log("LP Incentive for id: ", lpId, "is: " ,incentives[lpShareAddresses[lpId][i]].balances[lpId]);
+                console.log("Rewards for id: ", lpId, "is: " ,incentives[lpShareAddresses[lpId][i]].rewards[token]);
+                // uint256 totalRewards = ((((incentives[lpShareAddresses[lpId][i]].balances[lpId] / _totalSupply) * 100) / 100) * amount);
+                // incentives[lpShareAddresses[lpId][i]].rewards[token] += totalRewards;
+            }
         }
     }
 
@@ -111,6 +116,7 @@ contract LPShares is ERC20 {
     }
 
     function toString(address account) public pure returns(string memory) {
-    return toString(abi.encodePacked(account));
-}
+        uint160 i = uint160(account);
+        return Strings.toHexString(i, 20);
+    }
 }

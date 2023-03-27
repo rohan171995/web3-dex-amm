@@ -4,7 +4,7 @@ pragma solidity ^0.8.18;
 import "./LPShares.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract DcxSwap is Ownable{
+contract DcxSwap is Ownable {
 
     struct LiquidityPool { 
         address token1;
@@ -20,41 +20,48 @@ contract DcxSwap is Ownable{
         lpShares = LPShares(_lpShares);
     }
 
-    function _mint(address _token1, address token2, address _to, uint _amount) private {
+    function _mint(address _token1, address _token2, address _to, uint _amount) private {
         lpShares.mint(_token1, _token2, _to, _amount);
     }
 
-    function _burn(address _token1, address token2, address _from, uint _amount) private {
+    function _burn(address _token1, address _token2, address _from, uint _amount) private {
         lpShares.burn(_token1, _token2, _from, _amount);
     }
 
     function swap(address _tokenIn, address _tokenOut, uint256 _amountIn) external {
         require(_amountIn > 0, "amount in = 0");
-        require(IERC20(_tokenIn).allowance(msg.sender, this) >= _amountIn, "insufficient allowance to smart contract");
+        require(IERC20(_tokenIn).allowance(msg.sender, address(this)) >= _amountIn, "insufficient allowance to smart contract");
+        require(IERC20(_tokenIn).balanceOf(msg.sender) >= _amountIn, "insufficient amount in user's wallet");
+        
+        uint reserveIn = IERC20(_tokenIn).balanceOf(address(this));
+        uint reserveOut = IERC20(_tokenOut).balanceOf(address(this));
+
+        require(reserveOut > 0, "Dex out of liquidity");
 
         uint amountInWithFee = (_amountIn * 997) / 1000;
-        amountOut = (reserveOut * amountInWithFee) / (reserveIn + amountInWithFee);
+        uint amountOut = (reserveOut * amountInWithFee) / (reserveIn + amountInWithFee);
 
-        require(IERC20(_tokenOut).balanceOf(this) >= amountOut, "out of liquidity");
+        require(IERC20(_tokenOut).balanceOf(address(this)) >= amountOut, "Dex out of liquidity");
 
-        tokenIn.transferFrom(msg.sender, address(this), amountInWithFee);
-        tokenOut.transfer(msg.sender, amountOut);
+        IERC20(_tokenIn).transferFrom(msg.sender, address(this), _amountIn);
+        IERC20(_tokenOut).transfer(msg.sender, amountOut);
 
-        tokenIn.transfer(address(lpShares), (_amountIn - amountInWithFee));
-        lpShares.incentiviseUser(_tokenIn, _tokenOut,  _tokenIn, (_amountIn - amountInWithFee));
+        IERC20(_tokenIn).transfer(address(lpShares), (_amountIn - amountInWithFee));
+        lpShares.incentiviseLPProviders(_tokenIn, _tokenOut,  _tokenIn, (_amountIn - amountInWithFee));
 
     }
 
     function addLiquidity(address _token1, address _token2, uint _amount1, uint _amount2) external returns (uint shares) {
 
+        require(_token1 != _token2, "same token liquidity operation not valid");
         require(_amount1 > 0, "amount 1 = 0");
         require(_amount2 > 0, "amount 2 = 0");
 
-        require(IERC20(_token1).allowance(msg.sender, this) >= _amountIn, "insufficient allowance of token 1 to smart contract");
-        require(IERC20(_token2).allowance(msg.sender, this) >= _amountIn, "insufficient allowance of token 2 to smart contract");
+        require(IERC20(_token1).allowance(msg.sender, address(this)) >= _amount1, "insufficient allowance of token 1 to smart contract");
+        require(IERC20(_token2).allowance(msg.sender, address(this)) >= _amount2, "insufficient allowance of token 2 to smart contract");
 
-        _token1.transferFrom(msg.sender, address(this), _amount1);
-        _token2.transferFrom(msg.sender, address(this), _amount2);
+        IERC20(_token1).transferFrom(msg.sender, address(this), _amount1);
+        IERC20(_token2).transferFrom(msg.sender, address(this), _amount2);
 
         /*
         How much dx, dy to add?
@@ -71,8 +78,8 @@ contract DcxSwap is Ownable{
         x / y = dx / dy
         dy = y / x * dx
         */
-        if (IERC20(_token1).balanceOf(this) > 0 || IERC20(_token2).balanceOf(this) > 0) {
-            require(IERC20(_token1).balanceOf(this) * _amount2 == IERC20(_token2).balanceOf(this) * _amount1, "x / y != dx / dy");
+        if (IERC20(_token1).balanceOf(address(this)) > 0 || IERC20(_token2).balanceOf(address(this)) > 0) {
+            require(IERC20(_token1).balanceOf(address(this)) * _amount2 == IERC20(_token2).balanceOf(address(this)) * _amount1, "x / y != dx / dy");
         }
 
         /*
@@ -125,14 +132,14 @@ contract DcxSwap is Ownable{
         Finally
         (L1 - L0) / L0 = dx / x = dy / y
         */
-        uint256 totalSuppy = IERC20(_token1).balanceOf(this) * IERC20(_token2).balanceOf(this);
+        uint256 totalSupply = IERC20(_token1).balanceOf(address(this)) * IERC20(_token2).balanceOf(address(this));
 
         if (totalSupply == 0) {
             shares = _sqrt(_amount1 * _amount2);
         } else {
             shares = _min(
-                (_amount1 * totalSupply) / IERC20(_token1).balanceOf(this),
-                (_amount2 * totalSupply) / IERC20(_token2).balanceOf(this)
+                (_amount1 * totalSupply) / IERC20(_token1).balanceOf(address(this)),
+                (_amount2 * totalSupply) / IERC20(_token2).balanceOf(address(this))
             );
         }
         require(shares > 0, "shares = 0");
@@ -179,8 +186,10 @@ contract DcxSwap is Ownable{
 
         // bal0 >= reserve0
         // bal1 >= reserve1
-        uint bal0 = token1.balanceOf(address(this));
-        uint bal1 = token2.balanceOf(address(this));
+        uint256 totalSupply = IERC20(_token1).balanceOf(address(this)) * IERC20(_token2).balanceOf(address(this));
+
+        uint bal0 = IERC20(_token1).balanceOf(address(this));
+        uint bal1 = IERC20(_token2).balanceOf(address(this));
 
         amount0 = (_shares * bal0) / totalSupply;
         amount1 = (_shares * bal1) / totalSupply;
@@ -188,8 +197,8 @@ contract DcxSwap is Ownable{
 
         _burn(_token1, _token2, msg.sender, _shares);
 
-        token1.transfer(msg.sender, amount0);
-        token2.transfer(msg.sender, amount1);
+        IERC20(_token1).transfer(msg.sender, amount0);
+        IERC20(_token2).transfer(msg.sender, amount1);
     }
 
     function claimIncentive(address user, address _token) public {
