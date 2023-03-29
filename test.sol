@@ -74,6 +74,17 @@ contract CPAMM {
         token0.transferFrom(msg.sender, address(this), _amount0);
         token1.transferFrom(msg.sender, address(this), _amount1);
 
+         /*
+        How much dx, dy to add in the Liquidity Pool?
+        There shouldn' be any price change before and after adding liquidity.
+        Price of a token0 is determined by x/y (reserve of token 0 divided by reserve of token1) and vice versa for token 1
+        x / y = (x + dx) / (y + dy)
+        x(y + dy) = y(x + dx)
+        x * dy = y * dx -> This condition has to be satisfied before proceeding to add liquidity
+        x / y = dx / dy
+        dy = y / x * dx  
+        */
+
         if (reserve0 > 0 || reserve1 > 0) {
             require(reserve0 * _amount1 == reserve1 * _amount0, "x / y != dx / dy");
         }
