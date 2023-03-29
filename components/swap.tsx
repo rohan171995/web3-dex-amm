@@ -9,7 +9,7 @@ const style = {
     formHeader: `px-2 flex items-center justify-between font-semibold text-xl`,
     transferPropContainer: `bg-white my-3 rounded-2xl p-6 text-3xl  border border-[#20242A] hover:border-[#41444F]  flex justify-between`,
     transferPropInput: `bg-transparent placeholder:text-[#B2B9D2] outline-none mb-6 w-full text-2xl`,
-    currencyBalance: `flex flex-row text-sm`,
+    currencyBalance: `flex flex-row text-sm justify-center`,
     currencySelector: `flex w-1/4 flex-col`,
     currencySelectorContent: `w-full h-min flex justify-center items-center bg-blue-200 hover:bg-blue-300 rounded-2xl text-xl font-medium cursor-pointer p-2 mt-[-0.2rem]`,
     currencySelectorIcon: `flex items-center`,
@@ -26,6 +26,7 @@ export default function SwapComponent(props: any) {
     const [bblBalance, setBblBalance] = useState(0.0);
     const [hasMounted, setHasMounted] = useState(false);
     const [srcToken, setSrcToken] = useState("IPL");
+    const [desTokenExchangeRate, setDesTokenExchangeRate] = useState(0.0);
     const ammAbi = [
         {
             "inputs": [
@@ -655,8 +656,9 @@ export default function SwapComponent(props: any) {
             "type": "function"
         }
     ];
-    const iplTokenAddress = "0xdD0B3099a71Df27d02F1E12163C6438F178Ce23F";
-    const bblTokenAddress = "0xb64a5D74e746b7B42D001e4130f6F2834390A6FE";
+    const iplTokenAddress = "0x7E884Bf184C4A61f58764D707aD6681dEF278a08";
+    const bblTokenAddress = "0x7EBdc2a44b3d06f96bDF6aF992a7d9712af9D80A";
+    const contractAddress = "0xdf50f23c1dAAe906450CDf410a03FAB338e1B7c0";
     const provider = new ethers.providers.JsonRpcProvider("http://127.0.0.1:7545");
 
     const handleIplChange = (event: any) => {
@@ -680,7 +682,7 @@ export default function SwapComponent(props: any) {
     };
 
     async function updateSwapTokenAmount(tokenIn: string, amount: any) {
-        const contract = new ethers.Contract("0x0A4906f1cd029b52237C8BcF3a91cA8375fa389D", ammAbi, provider);
+        const contract = new ethers.Contract(contractAddress, ammAbi, provider);
         if(tokenIn == "IPL") {
             let swapBalance = await contract.swapTokenAmount(iplTokenAddress,`${amount}000000000000000000`);
             setBblAmount(Number(parseInt(swapBalance._hex, 16))/(10**18));
@@ -688,7 +690,26 @@ export default function SwapComponent(props: any) {
             let swapBalance = await contract.swapTokenAmount(bblTokenAddress,`${amount}000000000000000000`);
             setIplAmount(Number(parseInt(swapBalance._hex, 16))/(10**18));
         }
-    }   
+    }
+
+    async function swapAmount(tokenIn: string, amount: any) {
+        const contract = new ethers.Contract(contractAddress, ammAbi, provider);
+        let swapBalance;
+        if(tokenIn == "IPL") {
+            swapBalance = await contract.swapTokenAmount(iplTokenAddress,`${amount}000000000000000000`);
+        } else if (tokenIn == "BBL") {
+            swapBalance = await contract.swapTokenAmount(bblTokenAddress,`${amount}000000000000000000`);
+        }
+        return Number(parseInt(swapBalance._hex, 16))/(10**18);
+    }
+
+    function getDestToken(tokenIn: string) {
+        if(tokenIn == "BBL") {
+            return "IPL"
+        } else {
+            return "BBL"
+        }
+    }
 
         // Hooks
     useEffect(() => {
@@ -700,6 +721,12 @@ export default function SwapComponent(props: any) {
             setIplBalance(0);
         }
     }, [props.isConnected])
+
+    useEffect(() => {
+        swapAmount(srcToken,1).then((amount) => {
+            setDesTokenExchangeRate(amount);
+        })
+    }, [srcToken])
 
     function swapSrcDestToken() {
         if(srcToken == "IPL") {
@@ -725,10 +752,12 @@ export default function SwapComponent(props: any) {
 
     async function swapToken() {
         const signer = provider.getSigner(address);
-        const contract = new ethers.Contract("0x0A4906f1cd029b52237C8BcF3a91cA8375fa389D", ammAbi, signer);
+        const contract = new ethers.Contract(contractAddress, ammAbi, signer);
         const swapTokenInAddress = (srcToken === "IPL") ? iplTokenAddress : bblTokenAddress;
         const swapAmount = (srcToken === "IPL") ? iplAmount : bblAmount;
         let tokenOut = await contract.swap(swapTokenInAddress, `${swapAmount}000000000000000000`);
+        setIplAmount(0.0);
+        setBblAmount(0.0);
         setBalanceOfTokens();
     }
 
@@ -748,6 +777,7 @@ export default function SwapComponent(props: any) {
       <div className={style.content}>
         <div className={style.formHeader}>
           <div className="text-black">Swap</div>
+          { (desTokenExchangeRate > 0) && <div className="text-black text-sm font-normal">1 {srcToken} = {desTokenExchangeRate.toFixed(3)} {getDestToken(srcToken)}</div> }
         </div>
         <div className='flex flex-col token-input-container'>
         <div className={style.transferPropContainer}>
@@ -763,7 +793,7 @@ export default function SwapComponent(props: any) {
             <div className={style.currencySelectorContent}>
               <div className={style.currencySelectorTicker}>{"IPL"}</div>
             </div>
-            {iplBalance > 0 && <div className={style.currencyBalance}>Balance : {iplBalance.toFixed(2)}</div> 
+            {iplBalance > 0 && <div className={style.currencyBalance}>Bal : {iplBalance.toFixed(2)}</div> 
             }
           </div>
         </div>
@@ -783,7 +813,7 @@ export default function SwapComponent(props: any) {
           <div className={style.currencySelectorContent}>
               <div className={style.currencySelectorTicker}>{"BBL"}</div>
             </div>
-            {bblBalance >0 && <div className={style.currencyBalance}>Balance : {bblBalance.toFixed(2)}</div> 
+            {bblBalance >0 && <div className={style.currencyBalance}>Bal : {bblBalance.toFixed(2)}</div> 
             }
           </div>
         </div>
